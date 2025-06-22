@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use('/api/products', require('./routes/products'));
+app.use('/api/products', productRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Servidor escuchando en puerto ${PORT}`));
