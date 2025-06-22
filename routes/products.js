@@ -4,6 +4,15 @@ const multer = require('multer');
 const upload = multer();
 const db = require('../db');
 
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+
 // ===================== GET =====================
 router.get('/', async (req, res) => {
   try {
@@ -28,18 +37,45 @@ router.post('/', upload.single('image'), async (req, res) => {
       logo_type
     } = req.body;
 
+    let image_url = null;
+    let image_public_id = null;
+
+    // ✅ Si se subió una imagen, súbela a Cloudinary
+    if (req.file) {
+      const result = await cloudinary.uploader.upload_stream(
+        { folder: 'inventario_dwear' },
+        (error, result) => {
+          if (error) throw error;
+          image_url = result.secure_url;
+          image_public_id = result.public_id;
+
+          // Luego de subir la imagen, insertar en la BD
+          return db.sql`
+            INSERT INTO products (type, size, color, quantity, price, brand, logo_type, image_url, image_public_id)
+            VALUES (${type}, ${size}, ${color}, ${quantity}, ${price}, ${brand}, ${logo_type}, ${image_url}, ${image_public_id})
+          `.then(() => {
+            res.json({ success: true, message: 'Producto agregado con imagen' });
+          });
+        }
+      );
+
+      result.end(req.file.buffer); // ← sube desde buffer
+      return;
+    }
+
+    // Si no hay imagen, solo inserta el producto
     await db.sql`
       INSERT INTO products (type, size, color, quantity, price, brand, logo_type)
       VALUES (${type}, ${size}, ${color}, ${quantity}, ${price}, ${brand}, ${logo_type})
     `;
-
-    res.json({ success: true, message: 'Producto agregado correctamente' });
+    res.json({ success: true, message: 'Producto agregado sin imagen' });
 
   } catch (err) {
     console.error('❌ Error al insertar producto:', err);
     res.status(500).json({ success: false, message: 'Error al insertar producto' });
   }
 });
+
 
 // ===================== PUT =====================
 // Actualiza producto por ID
